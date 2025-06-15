@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Jogo do Sistema Solar</title>
+  <link rel="icon" href="icone.png" type="image/png" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+      height: 100%;
+      background: #001969;
+    }
+
+    .container {
+      display: flex;
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .background-scroll {
+      display: flex;
+      overflow-x: auto;
+      overflow-y: hidden;
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 2;
+      user-select: none;
+      scrollbar-gutter: stable both-edges;
+    }
+
+    .background-scroll::-webkit-scrollbar {
+      height: 20px;
+    }
+
+    .background-scroll::-webkit-scrollbar-track {
+      background: white;
+    }
+
+    .background-scroll::-webkit-scrollbar-thumb {
+      background-color: #00aaff;
+      border-radius: 4px;
+    }
+
+    .space {
+      position: relative;
+      height: 100%;
+      min-width: 25000px;
+      background: transparent;
+    }
+
+    .planet-zone {
+      position: absolute;
+      top: 50%;
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 1px dashed #fff;
+      transform: translateY(-50%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .planet {
+      z-index: 10;
+      cursor: grab;
+      user-select: none;
+      transition: transform 0.3s ease, width 0.3s ease, height 0.3s ease;
+    }
+
+    .planet.sticker {
+      width: 90px;
+      height: auto;
+    }
+
+    .planet.dropped {
+      width: 120px !important;
+      height: 120px !important;
+      animation: pop-in 0.4s ease;
+    }
+
+    @keyframes pop-in {
+      0% {
+        transform: scale(0.6);
+        opacity: 0.4;
+      }
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    .foreground-ui {
+      position: fixed;
+      top: 40px;
+      left: 0;
+      bottom: 50px;
+      z-index: 0;
+      width: 100vw;
+      height: calc(100vh - 40px);
+      pointer-events: none;
+      background: url('profAxolote_front.png') no-repeat center center;
+      background-size: contain;
+    }
+
+    .hints {
+      pointer-events: auto;
+      background-color: rgba(255, 255, 255, 0.6);
+      color: rgb(0, 0, 0);
+      padding: 20px;
+      max-width: 300px;
+      border-radius: 10px;
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 10001;
+    }
+
+    .controls {
+      pointer-events: auto;
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 10001;
+      text-align: right;
+    }
+
+    .controls button {
+      padding: 10px 15px;
+      font-size: 24px;
+      cursor: pointer;
+      border-radius: 6px;
+      border: none;
+      background-color: #0044cc;
+      color: white;
+      transition: background-color 0.3s ease;
+    }
+
+    .controls button:hover {
+      background-color: #003399;
+    }
+
+    #feedback {
+      margin-top: 10px;
+      color: white;
+      font-size: 24px;
+      font-weight: bold;
+      max-width: 320px;
+      pointer-events: auto;
+      text-align: right;
+    }
+
+    #feedback .highlight-correct {
+      color: #0f0;
+      font-weight: 900;
+    }
+
+    #feedback .highlight-total {
+      color: #0ff;
+      font-weight: 900;
+    }
+
+    .sticker-bar {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      padding: 10px;
+      z-index: 10001;
+    }
+
+    .sticker-bar img {
+      position: relative !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="background-scroll" id="scrollArea" tabindex="0">
+      <div class="space" id="space">
+        <!-- Zona do Sol -->
+        <div class="planet-zone" style="left: 0px; top: 50%; border:none;" data-planeta="Sol">
+          <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 28px; color: white; font-weight: bold;">☀</div>
+          <img src="sol.png" class="planet" draggable="false" id="Sol" style="position: absolute; left: 30px; top: calc(50% - 60px); width: 120px; height: 120px;" />
+        </div>
+      </div>
+    </div>
+
+    <div class="foreground-ui"></div>
+
+    <div class="hints">
+      <p style="font-size: 16px; text-align: center;">Lembre-se, você só tem <b id="tentativasTexto" style="font-size: 32px; color: #003399">3</b> chances.</p>
+      <p style="font-size: 12px; text-align: center;">Só aperte o botão <b>VERIFICAR</b> quando tiver certeza que está tudo certo.</p>
+    </div>
+
+    <div class="controls">
+      <button onclick="verificar()">Verificar</button>
+      <div id="feedback"></div>
+        <button id="reiniciarBtn" style="display:none; margin-top: 10px;" onclick="reiniciar()">Tentar Novamente</button>
+    </div>
+
+    <div class="sticker-bar" id="stickerBar"></div>
+  </div>
+
+<script>
+  const distanciasOriginais = {
+    'Mercúrio': 1.56,
+    'Vênus': 2.88,
+    'Terra': 4,
+    'Marte': 6.08,
+    'Júpiter': 20.8,
+    'Saturno': 38.12,
+    'Urano': 76.4,
+    'Netuno': 120,
+  };
+
+  const escala = 200;
+  const space = document.getElementById('space');
+  const scrollArea = document.getElementById('scrollArea');
+  const stickerBar = document.getElementById('stickerBar');
+
+  function criarPlanetas() {
+    const ordemPlanetas = Object.keys(distanciasOriginais);
+
+    for (let i = 0; i < ordemPlanetas.length; i++) {
+      const planeta = ordemPlanetas[i];
+      const px = distanciasOriginais[planeta] * escala;
+
+      const zone = document.createElement('div');
+      zone.className = 'planet-zone';
+      zone.style.left = px + 'px';
+      zone.dataset.planeta = planeta;
+
+      const numero = document.createElement('div');
+      numero.textContent = (i + 1).toString();
+      numero.style.position = 'absolute';
+      numero.style.top = '50%';
+      numero.style.left = '50%';
+      numero.style.transform = 'translate(-50%, -50%)';
+      numero.style.color = '#fff';
+      numero.style.fontSize = '28px';
+      numero.style.fontWeight = 'bold';
+      numero.style.pointerEvents = 'none';
+      zone.appendChild(numero);
+
+      const distanciaTexto = document.createElement('div');
+      distanciaTexto.textContent = `Distância: ${(distanciasOriginais[planeta] / 4).toFixed(2)} UA`;
+      distanciaTexto.style.position = 'absolute';
+      distanciaTexto.style.top = 'calc(100% - 80px)';
+      distanciaTexto.style.left = '140%';
+      distanciaTexto.style.transform = 'translateX(-50%)';
+      distanciaTexto.style.color = '#fff';
+      distanciaTexto.style.fontSize = '16px';
+      distanciaTexto.style.textAlign = 'left';
+      distanciaTexto.style.pointerEvents = 'none';
+      zone.appendChild(distanciaTexto);
+
+      space.appendChild(zone);
+
+      const img = document.createElement('img');
+      img.src = planeta.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "") + ".png";
+      img.className = 'planet sticker';
+      img.draggable = true;
+      img.id = planeta;
+      img.title = planeta;
+
+      stickerBar.appendChild(img);
+
+      img.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData("text/plain", e.target.id);
+      });
+
+      img.addEventListener('dragend', (e) => {
+        const dropX = e.clientX + scrollArea.scrollLeft;
+        const dropY = e.clientY;
+
+        const planetZones = [...document.getElementsByClassName('planet-zone')];
+        const zonaAlvo = planetZones.find(z => {
+          const rect = z.getBoundingClientRect();
+          return (
+            dropX >= rect.left + scrollArea.scrollLeft &&
+            dropX <= rect.right + scrollArea.scrollLeft &&
+            dropY >= rect.top &&
+            dropY <= rect.bottom
+          );
+        });
+
+        if (zonaAlvo) {
+          const zoneRect = zonaAlvo.getBoundingClientRect();
+          const zoneCenterX = zoneRect.left + scrollArea.scrollLeft + zoneRect.width / 2;
+          const zoneCenterY = zoneRect.top + zoneRect.height / 2;
+
+          const jaTemPlaneta = [...space.getElementsByTagName('img')].some(p => {
+            if (p.id === e.target.id) return false;
+            const rect = p.getBoundingClientRect();
+            const centerX = rect.left + scrollArea.scrollLeft + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const dx = Math.abs(centerX - zoneCenterX);
+            const dy = Math.abs(centerY - zoneCenterY);
+            return dx < 20 && dy < 20;
+          });
+
+          if (jaTemPlaneta) {
+            resetSticker(e.target);
+            return;
+          }
+
+          e.target.classList.remove('sticker');
+          e.target.classList.add('dropped');
+          e.target.style.position = 'absolute';
+          e.target.style.left = (zoneCenterX - 60 - 15) + 'px';
+          e.target.style.top = (zoneCenterY - 60) + 'px';
+          e.target.draggable = true;
+          e.target.style.cursor = 'grab';
+
+          space.appendChild(e.target);
+        } else {
+          resetSticker(e.target);
+        }
+      });
+    }
+  }
+
+function resetSticker(img) {
+  img.classList.remove('dropped');
+  img.classList.add('sticker');
+  stickerBar.appendChild(img); // <- ESSA LINHA REINSERE O PLANETA NA BARRA INFERIOR
+  img.style.position = 'relative';
+  img.style.left = '0px';
+  img.style.top = '0px';
+}
+
+
+  criarPlanetas();
+
+let tentativasRestantes = 3;
+
+function verificar() {
+  if (tentativasRestantes <= 0) return;
+
+  let acertados = 0;
+  let total = Object.keys(distanciasOriginais).length;
+
+  for (const planeta in distanciasOriginais) {
+    const zone = [...document.getElementsByClassName('planet-zone')].find(z => z.dataset.planeta === planeta);
+    const sticker = [...space.getElementsByTagName('img')].find(i => i.id === planeta);
+    if (!zone || !sticker) continue;
+
+    const zoneRect = zone.getBoundingClientRect();
+    const stickerRect = sticker.getBoundingClientRect();
+
+    const zoneCenterX = zoneRect.left + zoneRect.width / 2;
+    const zoneCenterY = zoneRect.top + zoneRect.height / 2;
+
+    const stickerCenterX = stickerRect.left + stickerRect.width / 2;
+    const stickerCenterY = stickerRect.top + stickerRect.height / 2;
+
+    const distX = Math.abs(stickerCenterX - zoneCenterX);
+    const distY = Math.abs(stickerCenterY - zoneCenterY);
+
+    const tolerancia = 40;
+
+    if (distX <= tolerancia && distY <= tolerancia) {
+      acertados++;
+      zone.style.borderColor = '#0f0';
+      zone.style.borderStyle = 'solid';
+    } else {
+      zone.style.borderColor = '#f00';
+      zone.style.borderStyle = 'solid';
+    }
+  }
+
+  // Exibir nomes dos planetas após verificação
+for (const planeta in distanciasOriginais) {
+  const zone = [...document.getElementsByClassName('planet-zone')].find(z => z.dataset.planeta === planeta);
+  if (!zone) continue;
+
+  // Verifica se o nome já foi inserido antes para não duplicar
+  if (!zone.querySelector('.planet-name')) {
+    const nomeTexto = document.createElement('div');
+    nomeTexto.className = 'planet-name';
+    nomeTexto.textContent = planeta;
+    nomeTexto.style.position = 'absolute';
+    nomeTexto.style.top = '-40px';
+    nomeTexto.style.left = '50%';
+    nomeTexto.style.transform = 'translateX(-50%)';
+    nomeTexto.style.color = 'white';
+    nomeTexto.style.fontSize = '32px';
+    nomeTexto.style.fontWeight = 'bold';
+    nomeTexto.style.pointerEvents = 'none';
+    zone.appendChild(nomeTexto);
+  }
+}
+
+  tentativasRestantes--;
+  document.getElementById('tentativasTexto').textContent = tentativasRestantes;
+
+
+  const feedback = document.getElementById('feedback');
+  if (acertados === total) {
+    feedback.innerHTML = `Parabéns! Você acertou todos os planetas! <span class="highlight-correct">(${acertados}/${total})</span>`;
+  } else if (tentativasRestantes > 0) {
+    feedback.innerHTML = `Você acertou <span class="highlight-correct">${acertados}</span> de <span class="highlight-total">${total}</span> planetas.`;
+  } else {
+    feedback.innerHTML = `Fim de jogo. Você usou todas as tentativas.`;
+    document.querySelector('.controls button').disabled = true;
+    document.querySelector('.controls button').style.backgroundColor = '#666';
+    document.querySelector('.controls button').style.cursor = 'not-allowed';
+    document.getElementById('reiniciarBtn').style.display = 'inline-block';
+  }
+}
+
+function reiniciar() {
+  tentativasRestantes = 3;
+  document.getElementById('tentativasTexto').textContent = tentativasRestantes;
+  document.getElementById('feedback').textContent = '';
+  document.getElementById('reiniciarBtn').style.display = 'none';
+
+  // Resetar botões
+  const botao = document.querySelector('.controls button');
+  botao.disabled = false;
+  botao.style.backgroundColor = '#0044cc';
+  botao.style.cursor = 'pointer';
+
+  // Remover planetas colados e recolocar como sticker
+  [...space.querySelectorAll('img.planet')].forEach(img => {
+    if (img.id !== 'Sol') {
+      resetSticker(img);
+    }
+  });
+
+  // Restaurar as bordas das zonas
+[...document.getElementsByClassName('planet-zone')].forEach(zone => {
+  if (zone.dataset.planeta !== "Sol") {
+    zone.style.borderColor = 'white';
+    zone.style.borderStyle = 'dashed';
+  }
+});
+}
+</script>
+</body>
+</html>
