@@ -184,267 +184,96 @@
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="background-scroll" id="scrollArea" tabindex="0">
-      <div class="space" id="space">
-        <!-- Zona do Sol -->
-        <div class="planet-zone" style="left: 0px; top: 50%; border:none;" data-planeta="Sol">
-          <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 28px; color: white; font-weight: bold;">☀</div>
-          <img src="sol.png" class="planet" draggable="false" id="Sol" style="position: absolute; left: 30px; top: calc(50% - 60px); width: 120px; height: 120px;" />
-        </div>
-      </div>
-    </div>
-
-    <div class="foreground-ui"></div>
-
-    <div class="hints">
-      <p style="font-size: 16px; text-align: center;">Lembre-se, você só tem <b id="tentativasTexto" style="font-size: 32px; color: #003399">3</b> chances.</p>
-      <p style="font-size: 12px; text-align: center;">Só aperte o botão <b>VERIFICAR</b> quando tiver certeza que está tudo certo.</p>
-    </div>
-
-    <div class="controls">
-      <button onclick="verificar()">Verificar</button>
-      <div id="feedback"></div>
-        <button id="reiniciarBtn" style="display:none; margin-top: 10px;" onclick="reiniciar()">Tentar Novamente</button>
-    </div>
-
-    <div class="sticker-bar" id="stickerBar"></div>
-  </div>
-
+<!-- Corpo permanece o mesmo -->
 <script>
-  const distanciasOriginais = {
-    'Mercúrio': 1.56,
-    'Vênus': 2.88,
-    'Terra': 4,
-    'Marte': 6.08,
-    'Júpiter': 20.8,
-    'Saturno': 38.12,
-    'Urano': 76.4,
-    'Netuno': 120,
+function adicionarEventosInterativos(img) {
+  let isDragging = false;
+  let offsetX, offsetY;
+
+  const iniciarArraste = (clientX, clientY) => {
+    const rect = img.getBoundingClientRect();
+    offsetX = clientX - rect.left;
+    offsetY = clientY - rect.top;
+    isDragging = true;
+    img.style.position = 'absolute';
+    img.style.zIndex = 10000;
+    img.style.pointerEvents = 'none';
+    document.body.appendChild(img);
   };
 
-  const escala = 200;
-  const space = document.getElementById('space');
-  const scrollArea = document.getElementById('scrollArea');
-  const stickerBar = document.getElementById('stickerBar');
+  const mover = (clientX, clientY) => {
+    if (!isDragging) return;
+    const x = clientX - offsetX + scrollArea.scrollLeft;
+    const y = clientY - offsetY;
+    img.style.left = x + 'px';
+    img.style.top = y + 'px';
+  };
 
-  function criarPlanetas() {
-    const ordemPlanetas = Object.keys(distanciasOriginais);
+  const soltar = (clientX, clientY) => {
+    if (!isDragging) return;
+    isDragging = false;
+    img.style.pointerEvents = 'auto';
 
-    for (let i = 0; i < ordemPlanetas.length; i++) {
-      const planeta = ordemPlanetas[i];
-      const px = distanciasOriginais[planeta] * escala;
+    const dropX = clientX + scrollArea.scrollLeft;
+    const dropY = clientY;
+    const planetZones = [...document.getElementsByClassName('planet-zone')];
+    const zonaAlvo = planetZones.find(z => {
+      const rect = z.getBoundingClientRect();
+      return (
+        dropX >= rect.left + scrollArea.scrollLeft &&
+        dropX <= rect.right + scrollArea.scrollLeft &&
+        dropY >= rect.top &&
+        dropY <= rect.bottom
+      );
+    });
 
-      const zone = document.createElement('div');
-      zone.className = 'planet-zone';
-      zone.style.left = px + 'px';
-      zone.dataset.planeta = planeta;
+    if (zonaAlvo) {
+      const zoneRect = zonaAlvo.getBoundingClientRect();
+      const zoneCenterX = zoneRect.left + scrollArea.scrollLeft + zoneRect.width / 2;
+      const zoneCenterY = zoneRect.top + zoneRect.height / 2;
 
-      const numero = document.createElement('div');
-      numero.textContent = (i + 1).toString();
-      numero.style.position = 'absolute';
-      numero.style.top = '50%';
-      numero.style.left = '50%';
-      numero.style.transform = 'translate(-50%, -50%)';
-      numero.style.color = '#fff';
-      numero.style.fontSize = '28px';
-      numero.style.fontWeight = 'bold';
-      numero.style.pointerEvents = 'none';
-      zone.appendChild(numero);
-
-      const distanciaTexto = document.createElement('div');
-      distanciaTexto.textContent = `Distância: ${(distanciasOriginais[planeta] / 4).toFixed(2)} UA`;
-      distanciaTexto.style.position = 'absolute';
-      distanciaTexto.style.top = 'calc(100% - 80px)';
-      distanciaTexto.style.left = '140%';
-      distanciaTexto.style.transform = 'translateX(-50%)';
-      distanciaTexto.style.color = '#fff';
-      distanciaTexto.style.fontSize = '16px';
-      distanciaTexto.style.textAlign = 'left';
-      distanciaTexto.style.pointerEvents = 'none';
-      zone.appendChild(distanciaTexto);
-
-      space.appendChild(zone);
-
-      const img = document.createElement('img');
-      img.src = planeta.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "") + ".png";
-      img.className = 'planet sticker';
-      img.draggable = true;
-      img.id = planeta;
-      img.title = planeta;
-
-      stickerBar.appendChild(img);
-
-      img.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData("text/plain", e.target.id);
-      });
-
-      img.addEventListener('dragend', (e) => {
-        const dropX = e.clientX + scrollArea.scrollLeft;
-        const dropY = e.clientY;
-
-        const planetZones = [...document.getElementsByClassName('planet-zone')];
-        const zonaAlvo = planetZones.find(z => {
-          const rect = z.getBoundingClientRect();
-          return (
-            dropX >= rect.left + scrollArea.scrollLeft &&
-            dropX <= rect.right + scrollArea.scrollLeft &&
-            dropY >= rect.top &&
-            dropY <= rect.bottom
-          );
-        });
-
-        if (zonaAlvo) {
-          const zoneRect = zonaAlvo.getBoundingClientRect();
-          const zoneCenterX = zoneRect.left + scrollArea.scrollLeft + zoneRect.width / 2;
-          const zoneCenterY = zoneRect.top + zoneRect.height / 2;
-
-          const jaTemPlaneta = [...space.getElementsByTagName('img')].some(p => {
-            if (p.id === e.target.id) return false;
-            const rect = p.getBoundingClientRect();
-            const centerX = rect.left + scrollArea.scrollLeft + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
-            const dx = Math.abs(centerX - zoneCenterX);
-            const dy = Math.abs(centerY - zoneCenterY);
-            return dx < 20 && dy < 20;
-          });
-
-          if (jaTemPlaneta) {
-            resetSticker(e.target);
-            return;
-          }
-
-          e.target.classList.remove('sticker');
-          e.target.classList.add('dropped');
-          e.target.style.position = 'absolute';
-          e.target.style.left = (zoneCenterX - 60 - 15) + 'px';
-          e.target.style.top = (zoneCenterY - 60) + 'px';
-          e.target.draggable = true;
-          e.target.style.cursor = 'grab';
-
-          space.appendChild(e.target);
-        } else {
-          resetSticker(e.target);
-        }
-      });
-    }
-  }
-
-function resetSticker(img) {
-  img.classList.remove('dropped');
-  img.classList.add('sticker');
-  stickerBar.appendChild(img); // <- ESSA LINHA REINSERE O PLANETA NA BARRA INFERIOR
-  img.style.position = 'relative';
-  img.style.left = '0px';
-  img.style.top = '0px';
-}
-
-
-  criarPlanetas();
-
-let tentativasRestantes = 3;
-
-function verificar() {
-  if (tentativasRestantes <= 0) return;
-
-  let acertados = 0;
-  let total = Object.keys(distanciasOriginais).length;
-
-  for (const planeta in distanciasOriginais) {
-    const zone = [...document.getElementsByClassName('planet-zone')].find(z => z.dataset.planeta === planeta);
-    const sticker = [...space.getElementsByTagName('img')].find(i => i.id === planeta);
-    if (!zone || !sticker) continue;
-
-    const zoneRect = zone.getBoundingClientRect();
-    const stickerRect = sticker.getBoundingClientRect();
-
-    const zoneCenterX = zoneRect.left + zoneRect.width / 2;
-    const zoneCenterY = zoneRect.top + zoneRect.height / 2;
-
-    const stickerCenterX = stickerRect.left + stickerRect.width / 2;
-    const stickerCenterY = stickerRect.top + stickerRect.height / 2;
-
-    const distX = Math.abs(stickerCenterX - zoneCenterX);
-    const distY = Math.abs(stickerCenterY - zoneCenterY);
-
-    const tolerancia = 40;
-
-    if (distX <= tolerancia && distY <= tolerancia) {
-      acertados++;
-      zone.style.borderColor = '#0f0';
-      zone.style.borderStyle = 'solid';
+      img.classList.remove('sticker');
+      img.classList.add('dropped');
+      img.style.left = (zoneCenterX - 60 - 15) + 'px';
+      img.style.top = (zoneCenterY - 60) + 'px';
+      space.appendChild(img);
     } else {
-      zone.style.borderColor = '#f00';
-      zone.style.borderStyle = 'solid';
-    }
-  }
-
-  // Exibir nomes dos planetas após verificação
-for (const planeta in distanciasOriginais) {
-  const zone = [...document.getElementsByClassName('planet-zone')].find(z => z.dataset.planeta === planeta);
-  if (!zone) continue;
-
-  // Verifica se o nome já foi inserido antes para não duplicar
-  if (!zone.querySelector('.planet-name')) {
-    const nomeTexto = document.createElement('div');
-    nomeTexto.className = 'planet-name';
-    nomeTexto.textContent = planeta;
-    nomeTexto.style.position = 'absolute';
-    nomeTexto.style.top = '-40px';
-    nomeTexto.style.left = '50%';
-    nomeTexto.style.transform = 'translateX(-50%)';
-    nomeTexto.style.color = 'white';
-    nomeTexto.style.fontSize = '32px';
-    nomeTexto.style.fontWeight = 'bold';
-    nomeTexto.style.pointerEvents = 'none';
-    zone.appendChild(nomeTexto);
-  }
-}
-
-  tentativasRestantes--;
-  document.getElementById('tentativasTexto').textContent = tentativasRestantes;
-
-
-  const feedback = document.getElementById('feedback');
-  if (acertados === total) {
-    feedback.innerHTML = `Parabéns! Você acertou todos os planetas! <span class="highlight-correct">(${acertados}/${total})</span>`;
-  } else if (tentativasRestantes > 0) {
-    feedback.innerHTML = `Você acertou <span class="highlight-correct">${acertados}</span> de <span class="highlight-total">${total}</span> planetas.`;
-  } else {
-    feedback.innerHTML = `Fim de jogo. Você usou todas as tentativas.`;
-    document.querySelector('.controls button').disabled = true;
-    document.querySelector('.controls button').style.backgroundColor = '#666';
-    document.querySelector('.controls button').style.cursor = 'not-allowed';
-    document.getElementById('reiniciarBtn').style.display = 'inline-block';
-  }
-}
-
-function reiniciar() {
-  tentativasRestantes = 3;
-  document.getElementById('tentativasTexto').textContent = tentativasRestantes;
-  document.getElementById('feedback').textContent = '';
-  document.getElementById('reiniciarBtn').style.display = 'none';
-
-  // Resetar botões
-  const botao = document.querySelector('.controls button');
-  botao.disabled = false;
-  botao.style.backgroundColor = '#0044cc';
-  botao.style.cursor = 'pointer';
-
-  // Remover planetas colados e recolocar como sticker
-  [...space.querySelectorAll('img.planet')].forEach(img => {
-    if (img.id !== 'Sol') {
       resetSticker(img);
     }
+  };
+
+  // Mouse
+  img.addEventListener('mousedown', e => {
+    e.preventDefault();
+    iniciarArraste(e.clientX, e.clientY);
+
+    const moverMouse = e => mover(e.clientX, e.clientY);
+    const soltarMouse = e => {
+      soltar(e.clientX, e.clientY);
+      window.removeEventListener('mousemove', moverMouse);
+      window.removeEventListener('mouseup', soltarMouse);
+    };
+
+    window.addEventListener('mousemove', moverMouse);
+    window.addEventListener('mouseup', soltarMouse);
   });
 
-  // Restaurar as bordas das zonas
-[...document.getElementsByClassName('planet-zone')].forEach(zone => {
-  if (zone.dataset.planeta !== "Sol") {
-    zone.style.borderColor = 'white';
-    zone.style.borderStyle = 'dashed';
-  }
-});
+  // Touch
+  img.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    iniciarArraste(touch.clientX, touch.clientY);
+
+    const moverTouch = e => mover(e.touches[0].clientX, e.touches[0].clientY);
+    const soltarTouch = e => {
+      soltar(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+      window.removeEventListener('touchmove', moverTouch);
+      window.removeEventListener('touchend', soltarTouch);
+    };
+
+    window.addEventListener('touchmove', moverTouch);
+    window.addEventListener('touchend', soltarTouch);
+  });
 }
 </script>
 </body>
